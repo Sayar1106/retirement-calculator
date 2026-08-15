@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+
+# Local virtualenvs, e.g. for the optional `mcp` dependency
+.venv/
+venv/
