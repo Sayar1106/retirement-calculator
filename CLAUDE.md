@@ -14,9 +14,19 @@ python3 retirement.py --schema openai          # tool definition on stdout
 python3 retirement.py --serve-mcp              # MCP server over stdio
 ```
 
-The CLI and `--schema` paths are stdlib-only. `--serve-mcp` is the sole dependency (`pip install
-mcp`) and is imported lazily inside `_serve_mcp()`, so the other paths keep working without it.
-There is no build step and no test framework.
+The CLI and `--schema` paths are stdlib-only, so any harness with a shell tool can use them with
+nothing installed. `--serve-mcp` is the sole dependency, declared as an optional extra and imported
+lazily inside `_serve_mcp()` so the other paths keep working without it:
+
+```
+pip install -e ".[mcp]"     # only needed for --serve-mcp
+```
+
+The pin is `mcp>=2,<3` and it is load-bearing: the API moved in 2.0, where
+`mcp.server.fastmcp.FastMCP` became `mcp.server.mcpserver.MCPServer`, so `_serve_mcp()` fails to
+import on 1.x. Re-check that import before widening the pin.
+
+There is no test framework.
 
 ## PARAMS is the source of truth
 

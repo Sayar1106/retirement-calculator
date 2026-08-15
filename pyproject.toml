@@ -1,0 +1,25 @@
+[project]
+name = "retirement-calculator"
+version = "0.1.0"
+description = "Compound-interest retirement projection, callable by LLM agent harnesses"
+requires-python = ">=3.9"
+
+# The CLI and --schema paths are stdlib-only, by design: any harness with a
+# shell tool can use them with nothing installed.
+dependencies = []
+
+[project.optional-dependencies]
+# Only --serve-mcp needs this.  Pinned to 2.x because the API moved in 2.0:
+# mcp.server.fastmcp.FastMCP became mcp.server.mcpserver.MCPServer, so the
+# import in _serve_mcp() fails outright on 1.x.
+mcp = ["mcp>=2,<3"]
+
+[project.scripts]
+retirement = "retirement:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["retirement"]
