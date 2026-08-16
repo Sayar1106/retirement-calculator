@@ -28,6 +28,26 @@ import on 1.x. Re-check that import before widening the pin.
 
 There is no test framework.
 
+## ollama_bridge.py — verifying a model actually relays the result
+
+`ollama_bridge.py` drives the MCP server with a local Ollama model and prints three stages
+separately: the arguments the model chose, what the tool returned, and how the model phrased it.
+
+```
+./.venv/bin/python ollama_bridge.py qwen3:0.6b --ask "..."
+```
+
+Keep it, because the obvious checks miss the failure it caught. Running under OpenClaw,
+`qwen3:0.6b` called the tool with correct arguments and reported `$96,418.81` for a result of
+`$99,957.78` — three times running, while OpenClaw's telemetry showed `calls: 1, failures: 0`.
+The call really did succeed; the model corrupted the number afterwards, apparently under context
+load (28 tool schemas and ~29k input tokens, versus one tool in the bridge, where the same model
+reports correctly).
+
+Two lessons that generalise: `failures: 0` confirms the tool ran, not that the answer survived
+to the user; and always verify with **novel** parameters, since a model can produce a textbook
+example like 10000/7%/500/30y from memory whether or not it read the tool's output.
+
 ## PARAMS is the source of truth
 
 `PARAMS` and `DESCRIPTION` at the top of the file feed all four consumers: the argparse flags, the
