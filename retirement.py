@@ -47,6 +47,15 @@ def future_value(
     Returns:
         The projected balance at the end of the period.
     """
+    # A rate above 1.0 means a percentage was passed instead of a decimal
+    # (7 for 7%). It is the one silent failure models actually make here:
+    # schema-valid, and it returns an absurd number instead of erroring.
+    if not 0 <= annual_return_rate <= 1:
+        raise ValueError(
+            f"annual_return_rate must be a decimal between 0 and 1, got "
+            f"{annual_return_rate} (for {annual_return_rate}%, pass "
+            f"{annual_return_rate / 100})"
+        )
     r = annual_return_rate / 12
     n = round(years * 12)
     if r == 0:

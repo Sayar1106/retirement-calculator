@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -70,7 +71,32 @@ def ollama_chat(model, messages, tools=None, timeout=900):
     return body["message"]
 
 
-async def run(model, server_python, question, timeout):
+JUDGE = """Question a user asked: {q}
+
+A tool was called with these arguments: {a}
+
+Do those arguments faithfully represent the question? A percentage in the
+question must appear as a decimal in the arguments (5.18% -> 0.0518).
+Do NOT check any arithmetic; judge only whether the arguments match the question.
+Reply with exactly PASS or FAIL, then one short reason."""
+
+
+def judge(model, question, args, timeout):
+    """Second opinion on intent -> arguments. Fresh context, no tools."""
+    reply = ollama_chat(
+        model,
+        [{"role": "user", "content": JUDGE.format(q=question, a=json.dumps(args))}],
+        timeout=timeout,
+    )
+    text = (reply.get("content") or "").strip()
+    # First verdict word wins. Substring-anywhere matching mis-scored replies
+    # like "not a FAIL, so PASS" -- models mention the other word while reasoning.
+    m = re.search(r"\b(PASS|FAIL)\b", text.upper())
+    verdict = m.group(1) if m else "?"
+    return f"{verdict} ({model}): {text.splitlines()[-1][:120] if text else 'no reply'}"
+
+
+async def run(model, server_python, question, timeout, verifier=None):
     params = StdioServerParameters(
         command=server_python, args=["retirement.py", "--serve-mcp"], cwd=HERE
     )
@@ -107,6 +133,9 @@ async def run(model, server_python, question, timeout):
                 if isinstance(args, str):
                     args = json.loads(args)
                 print(f"[ollama] wants {fn['name']}({args})")
+                if verifier:
+                    verdict = judge(verifier, question, args, timeout)
+                    print(f"[verify] {verdict}")
                 result = await session.call_tool(fn["name"], args)
                 text = result.content[0].text
                 print(f"[mcp]    returned: {text}")
@@ -123,10 +152,13 @@ def main():
     p.add_argument("--python", default=DEFAULT_PYTHON, help="interpreter with `mcp`")
     p.add_argument("--ask", default=DEFAULT_QUESTION, help="question to send")
     p.add_argument("--timeout", type=int, default=900, help="per-request seconds")
+    p.add_argument("--verify", metavar="MODEL", help="second model to judge the arguments")
     args = p.parse_args()
     if not os.path.exists(args.python):
         sys.exit(f"no interpreter at {args.python} -- run: pip install -e '.[mcp]'")
-    sys.exit(asyncio.run(run(args.model, args.python, args.ask, args.timeout)))
+    sys.exit(
+        asyncio.run(run(args.model, args.python, args.ask, args.timeout, args.verify))
+    )
 
 
 if __name__ == "__main__":
