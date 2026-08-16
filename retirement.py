@@ -64,6 +64,30 @@ def future_value(
     return initial_capital * growth + monthly_contribution * (growth - 1) / r
 
 
+def projection(
+    initial_capital: float,
+    annual_return_rate: float,
+    monthly_contribution: float,
+    years: float,
+) -> dict:
+    """future_value plus the figures a model would otherwise compute itself.
+
+    Models reliably relay a number the tool returns, and reliably get wrong any
+    number they derive themselves -- observed fabricating total contributions by
+    ~$900 while the headline was exact. Returning them removes the opportunity.
+    """
+    fv = future_value(
+        initial_capital, annual_return_rate, monthly_contribution, years
+    )
+    contributed = monthly_contribution * 12 * round(years)
+    return {
+        "future_value": round(fv, 2),
+        "initial_capital": initial_capital,
+        "monthly_contributions_total": round(contributed, 2),
+        "growth": round(fv - initial_capital - contributed, 2),
+    }
+
+
 def _body(json_schema=True):
     """The parameter schema every dialect wraps."""
     type_name = "number" if json_schema else "NUMBER"
@@ -128,12 +152,13 @@ def _serve_mcp():
     # so push the PARAMS descriptions onto the annotations before registering --
     # otherwise the model sees bare types with no guidance. Confined to this
     # process; the CLI and schema paths never run it.
-    future_value.__annotations__ = {
+    projection.__annotations__ = {
         name: Annotated[float, Field(description=desc)] for name, desc in PARAMS
-    } | {"return": float}
+    } | {"return": dict}
 
     server = MCPServer("retirement")
-    server.tool(name="future_value", description=DESCRIPTION)(future_value)
+    # Tool name stays future_value -- harnesses are configured against it.
+    server.tool(name="future_value", description=DESCRIPTION)(projection)
     server.run(transport="stdio")
 
 
@@ -155,7 +180,7 @@ def main(argv=None):
     missing = [n for n, v in values.items() if v is None]
     if missing:
         parser.error("missing required arguments: " + ", ".join(missing))
-    print(json.dumps({"future_value": round(future_value(**values), 2)}))
+    print(json.dumps(projection(**values)))
 
 
 if __name__ == "__main__":
